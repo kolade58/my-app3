@@ -1,0 +1,45 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main 
+      - cicd-demo
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKERHUB_KEY: ${{ secrets.DOCKER_KEY }}
+  IMAGE_NAME: app-helm
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_KEY }}
+          
+      - name: check the Dockerfile 
+        run: cd applications/cicd/helm-tutorial/app && ls -ltr 
+    
+      - name: Build Docker image
+        run: cd applications/cicd/helm-tutorial/app && ls -ltr && docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f Dockerfile .
+
+      - name: Push Docker image
+        run: cd applications/cicd/helm-tutorial/app  && docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Update values.yaml
+        run: |
+          cd applications/cicd/helm-tutorial/app/helm
+          sed -i 's|APP_VERSION:.*|APP_VERSION: '${{ github.sha }}'|' values.yaml 
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git add values.yaml
+          git commit -m "Update values.yaml"
+          git push origin main        
